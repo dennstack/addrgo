@@ -12,6 +12,7 @@ type Address struct {
 	Street   string
 	City     string
 	Postcode string
+	Hash     string
 }
 
 func hasAddressTags(tags map[string]string) bool {
@@ -37,6 +38,7 @@ func addressFromOSMTags(tags map[string]string) Address {
 		Street:   tags["addr:street"],
 		City:     tags["addr:city"],
 		Postcode: tags["addr:postcode"],
+		Hash:     GetMD5Hash(tags["addr:street"] + tags["addr:city"] + tags["addr:postcode"]),
 	}
 }
 
