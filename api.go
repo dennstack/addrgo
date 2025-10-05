@@ -22,5 +22,8 @@ func StartApiServer() {
 		Handler: middlewareStack(router),
 	}
 	log.Println("Starting server on :8080")
-	server.ListenAndServe()
+	err := server.ListenAndServe()
+	if err != nil {
+		log.Fatal("Server failed to start:", err)
+	}
 }

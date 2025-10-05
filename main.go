@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/dennstack/addrgo/osm"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
@@ -31,6 +32,8 @@ func main() {
 		log.Fatal("Failed to ping database:", err)
 	}
 	log.Println("Successfully connected to the database")
+
+	go osm.ImportOSMData(db)
 
 	StartApiServer()
 }

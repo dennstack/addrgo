@@ -1,12 +1,11 @@
 package osm
 
 import (
-	"compress/bzip2"
-	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+
+	"github.com/qedus/osmpbf"
 )
 
 type Address struct {
@@ -15,96 +14,74 @@ type Address struct {
 	Postcode string
 }
 
-type Node struct {
-	Tags []Tag `xml:"tag"`
-}
-
-type Tag struct {
-	Key   string `xml:"k,attr"`
-	Value string `xml:"v,attr"`
-}
-
-func hasAddress(tags []Tag) bool {
+func hasAddressTags(tags map[string]string) bool {
 	hasCity := false
 	hasStreet := false
 	hasPostcode := false
 
-	for _, tag := range tags {
-		switch tag.Key {
+	for key := range tags {
+		switch key {
 		case "addr:city":
 			hasCity = true
 		case "addr:street":
 			hasStreet = true
 		case "addr:postcode":
 			hasPostcode = true
-		default:
 		}
 	}
 	return hasCity && hasStreet && hasPostcode
 }
 
-func addressFromTags(tags []Tag) Address {
-	var street, postcode, city string
-	for _, tag := range tags {
-		switch tag.Key {
-		case "addr:city":
-			city = tag.Value
-		case "addr:street":
-			street = tag.Value
-		case "addr:postcode":
-			postcode = tag.Value
-		default:
-		}
+func addressFromOSMTags(tags map[string]string) Address {
+	return Address{
+		Street:   tags["addr:street"],
+		City:     tags["addr:city"],
+		Postcode: tags["addr:postcode"],
 	}
-	return Address{Street: street, City: city, Postcode: postcode}
-}
-
-func contains(arr []Address, a Address) bool {
-	for _, e := range arr {
-		if e == a {
-			return true
-		}
-	}
-	return false
 }
 
 func ParseFromUrl(url string, result chan<- Address) {
-
 	response, err := http.Get(url)
 	if err != nil {
+		fmt.Printf("Error downloading file: %v\n", err)
 		return
 	}
 	defer response.Body.Close()
 
-	bzipReader := bzip2.NewReader(response.Body)
-	xmlDecoder := xml.NewDecoder(bzipReader)
+	d := osmpbf.NewDecoder(response.Body)
+	err = d.Start(4) // 4 worker goroutines
+	if err != nil {
+		fmt.Printf("Error starting decoder: %v\n", err)
+		return
+	}
 
-	addresses := []Address{}
+	addressMap := make(map[Address]bool)
+
 	for {
-		tok, err := xmlDecoder.Token()
-		if tok == nil || err == io.EOF {
+		if v, err := d.Decode(); err == io.EOF {
 			break
 		} else if err != nil {
-			log.Fatalf("Error decoding token: %s", err)
-		}
-
-		switch ty := tok.(type) {
-		case xml.StartElement:
-			if ty.Name.Local == "node" || ty.Name.Local == "way" {
-				var node Node
-				err := xmlDecoder.DecodeElement(&node, &ty)
-				if err != nil {
-					fmt.Println("Error: ", err)
+			fmt.Printf("Error decoding: %v\n", err)
+			break
+		} else {
+			switch obj := v.(type) {
+			case *osmpbf.Node:
+				if hasAddressTags(obj.Tags) {
+					address := addressFromOSMTags(obj.Tags)
+					if _, exists := addressMap[address]; !exists {
+						addressMap[address] = true
+						result <- address
+					}
 				}
-				if hasAddress(node.Tags) {
-					address := addressFromTags(node.Tags)
-					if !contains(addresses, address) {
-						addresses = append(addresses, address)
+			case *osmpbf.Way:
+				if hasAddressTags(obj.Tags) {
+					address := addressFromOSMTags(obj.Tags)
+					if _, exists := addressMap[address]; !exists {
+						addressMap[address] = true
 						result <- address
 					}
 				}
 			}
-		default:
 		}
 	}
 }
