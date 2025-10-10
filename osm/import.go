@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/dennstack/addrgo/db"
 )
 
-func ImportOSMData(db *sql.DB) {
+func ImportOSMData() {
 	urls := os.Getenv("OSM_URLS")
 	urlList := strings.Split(urls, ",")
+	db := db.GetDatabaseInstance().Connection
 
 	fmt.Println("Starting OSM data import...")
 	_, err := db.Exec("CREATE TABLE IF NOT EXISTS addrgo_addresses (street VARCHAR(255), city VARCHAR(100), postcode VARCHAR(20), hash VARCHAR(32), INDEX idx_postcode (postcode), INDEX idx_street_city (street, city), INDEX idx_city (city), INDEX idx_street (street), INDEX idx_street_postcode (street, postcode), INDEX idx_full_address (street, city, postcode), INDEX idx_hash (hash))")
