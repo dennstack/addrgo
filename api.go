@@ -4,14 +4,14 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/dennstack/addrgo/api"
 	"github.com/dennstack/addrgo/middleware"
 )
 
 func StartApiServer() {
 	router := http.NewServeMux()
-	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, World!"))
-	})
+
+	router.HandleFunc("POST /api/search", api.SearcHandler)
 
 	middlewareStack := middleware.CreateStack(
 		middleware.LoggingMiddleware,
