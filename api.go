@@ -12,6 +12,7 @@ func StartApiServer() {
 	router := http.NewServeMux()
 
 	router.HandleFunc("POST /api/search", api.SearcHandler)
+	router.HandleFunc("POST /api/validate", api.ValidateHandler)
 
 	middlewareStack := middleware.CreateStack(
 		middleware.LoggingMiddleware,
