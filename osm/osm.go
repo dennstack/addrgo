@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/qedus/osmpbf"
 )
@@ -38,12 +40,18 @@ func addressFromOSMTags(tags map[string]string) Address {
 		Street:   tags["addr:street"],
 		City:     tags["addr:city"],
 		Postcode: tags["addr:postcode"],
-		Hash:     GetMD5Hash(tags["addr:street"] + tags["addr:city"] + tags["addr:postcode"]),
+		Hash:     GetHash(tags["addr:street"] + tags["addr:city"] + tags["addr:postcode"]),
 	}
 }
 
 func ParseFromUrl(url string, result chan<- Address) {
-	response, err := http.Get(url)
+	if !strings.HasPrefix(url, "https://") {
+		fmt.Printf("Rejected non-HTTPS URL: %s\n", url)
+		return
+	}
+
+	client := &http.Client{Timeout: 30 * time.Minute}
+	response, err := client.Get(url)
 	if err != nil {
 		fmt.Printf("Error downloading file: %v\n", err)
 		return
@@ -57,8 +65,6 @@ func ParseFromUrl(url string, result chan<- Address) {
 		return
 	}
 
-	addressMap := make(map[Address]bool)
-
 	for {
 		if v, err := d.Decode(); err == io.EOF {
 			break
@@ -69,19 +75,11 @@ func ParseFromUrl(url string, result chan<- Address) {
 			switch obj := v.(type) {
 			case *osmpbf.Node:
 				if hasAddressTags(obj.Tags) {
-					address := addressFromOSMTags(obj.Tags)
-					if _, exists := addressMap[address]; !exists {
-						addressMap[address] = true
-						result <- address
-					}
+					result <- addressFromOSMTags(obj.Tags)
 				}
 			case *osmpbf.Way:
 				if hasAddressTags(obj.Tags) {
-					address := addressFromOSMTags(obj.Tags)
-					if _, exists := addressMap[address]; !exists {
-						addressMap[address] = true
-						result <- address
-					}
+					result <- addressFromOSMTags(obj.Tags)
 				}
 			}
 		}

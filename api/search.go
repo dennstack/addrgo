@@ -2,11 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/dennstack/addrgo/db"
 )
+
+const maxLimit = 1000
 
 type SearchRequest struct {
 	Limit    int    `json:"limit,omitempty"`
@@ -46,21 +49,29 @@ func buildSearchQuery(request SearchRequest) (string, []interface{}) {
 
 	query := baseQuery + strings.Join(conditions, " AND ")
 	query += " ORDER BY postcode, city, street"
-
-	if request.Limit > 0 {
-		query += " LIMIT ?"
-		args = append(args, request.Limit)
-	}
+	query += " LIMIT ?"
+	args = append(args, request.Limit)
 
 	return query, args
 }
 
-func SearcHandler(w http.ResponseWriter, r *http.Request) {
+func SearchHandler(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var request SearchRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
+	}
+
+	if request.Street == "" && request.City == "" && request.Postcode == "" {
+		http.Error(w, "At least one field (street, city, postcode) is required", http.StatusBadRequest)
+		return
+	}
+
+	if request.Limit <= 0 || request.Limit > maxLimit {
+		request.Limit = maxLimit
 	}
 
 	database := db.GetDatabaseInstance().Connection
@@ -76,11 +87,17 @@ func SearcHandler(w http.ResponseWriter, r *http.Request) {
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-		err := rows.Scan(&result.Street, &result.City, &result.Postcode)
-		if err != nil {
-			continue
+		if err := rows.Scan(&result.Street, &result.City, &result.Postcode); err != nil {
+			log.Printf("scan error in SearchHandler: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
 		}
 		results = append(results, result)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("row iteration error in SearchHandler: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
 	}
 
 	response := SearchResponse{

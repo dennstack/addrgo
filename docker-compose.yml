@@ -6,28 +6,34 @@ services:
     ports:
       - '8080:8080'
     environment:
-      DB_USER: admin
-      DB_PASS: admin
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
       DB_HOST: mariadb
       DB_PORT: 3306
       DB_NAME: addrgo
-      OSM_URLS: https://download.geofabrik.de/europe/germany-latest.osm.pbf
+      OSM_URLS: ${OSM_URLS:-}
     depends_on:
-      - mariadb
+      mariadb:
+        condition: service_healthy
   mariadb:
-    image: mariadb:12
+    image: mariadb:11
     container_name: db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: addrgo
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: admin
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
     volumes:
       - data:/var/lib/mysql
     ports:
       - '3306:3306'
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   data:
-  minio_data:

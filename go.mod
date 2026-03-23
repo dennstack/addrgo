@@ -1,6 +1,6 @@
 module github.com/dennstack/addrgo
 
-go 1.25.1
+go 1.26.1
 
 require (
 	github.com/go-sql-driver/mysql v1.9.3
@@ -9,6 +9,6 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )

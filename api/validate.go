@@ -19,6 +19,8 @@ type ValidationResponse struct {
 }
 
 func ValidateHandler(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var validate ValidationRequest
 	err := json.NewDecoder(r.Body).Decode(&validate)
 	if err != nil {
@@ -38,12 +40,19 @@ func ValidateHandler(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		if err := rows.Scan(&count); err != nil {
-			log.Fatal(err)
+			log.Printf("scan error in ValidateHandler: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
 		}
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("row iteration error in ValidateHandler: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
 	}
 
 	response := ValidationResponse{
-		Valid: count == 1,
+		Valid: count > 0,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
